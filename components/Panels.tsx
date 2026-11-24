@@ -10,12 +10,44 @@ const MODES: [Mode, string][] = [['futures', 'Futures'], ['options', 'Options'],
 const f = (x: number, d = 2) => (Number.isFinite(x) ? x.toFixed(d) : '–');
 
 export function Dock({ mode, setMode, sel, toggle, range, openRange, openSheet }: any) {
-  const pills = pillsFor(mode); const drag = useDragControls();
+  const pills = pillsFor(mode);
+  const drag = useDragControls();
+  const [minimized, setMinimized] = useState(false);
+
+  if (minimized) {
+    return (
+      <div className="fixed inset-x-0 bottom-0 z-30 px-3 pb-3 flex justify-center pointer-events-auto" style={{ paddingBottom: 'max(14px, env(safe-area-inset-bottom))' }}>
+        <motion.button
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setMinimized(false)}
+          className="glass flex items-center gap-2 rounded-full px-4 py-2 text-xs font-medium text-white/90 shadow-xl shadow-black/60 hover:bg-white/10 transition border border-white/15"
+        >
+          <span className="text-sky-400">▲</span>
+          <span>Show Controls</span>
+          <span className="num text-[10px] text-white/40">({range.a.slice(2)} → {range.b.slice(2)})</span>
+        </motion.button>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-x-0 bottom-0 z-30 px-3 pt-1" style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom))' }}>
-      <motion.div onPointerDown={(e) => drag.start(e)} onTap={openSheet} onPanEnd={(_, i) => i.offset.y < -24 && openSheet()} className="mx-auto flex h-7 w-24 items-center justify-center" style={{ touchAction: 'none' }}>
-        <div className="h-1 w-10 rounded-full bg-white/30" />
-      </motion.div>
+      <div className="mx-auto flex h-7 max-w-xl items-center justify-between px-3">
+        <div className="w-12" />
+        <motion.div onPointerDown={(e) => drag.start(e)} onTap={openSheet} onPanEnd={(_, i) => i.offset.y < -24 && openSheet()} className="flex h-7 w-24 items-center justify-center cursor-grab active:cursor-grabbing" style={{ touchAction: 'none' }}>
+          <div className="h-1 w-10 rounded-full bg-white/30" />
+        </motion.div>
+        <button
+          onClick={() => setMinimized(true)}
+          title="Minimize bottom bar to view 3D diagram full-screen"
+          className="flex items-center gap-1 rounded-full bg-white/[0.08] px-2 py-0.5 text-[10px] text-white/50 hover:bg-white/15 hover:text-white transition"
+        >
+          <span>▼</span>
+          <span>Hide</span>
+        </button>
+      </div>
       <div className="glass mx-auto max-w-xl rounded-3xl p-2 space-y-2">
         <div className="grid grid-cols-4 gap-1 rounded-2xl bg-white/[0.04] p-1">
           {MODES.map(([m, l]) => (
