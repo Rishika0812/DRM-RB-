@@ -86,6 +86,17 @@ export default function Page() {
         onPointerDown={(e) => e.stopPropagation()}
       >
         <button
+          onClick={() => setOpenA(true)}
+          className="glass flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[11px] font-medium text-white/90 hover:bg-white/10 hover:text-white transition shadow-lg border border-emerald-400/30 bg-emerald-500/10"
+          title="Open Deep Regression & Financial Analytics"
+        >
+          <span className="flex h-4 w-4 items-center justify-center rounded-md bg-emerald-500/20 text-[10px] font-bold text-emerald-400">
+            📊
+          </span>
+          <span>Analysis &amp; Regression</span>
+        </button>
+
+        <button
           onClick={() => setOpenGuide(true)}
           className="glass flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[11px] font-medium text-white/90 hover:bg-white/10 hover:text-white transition shadow-lg"
           title="How to View 3D Diagram"

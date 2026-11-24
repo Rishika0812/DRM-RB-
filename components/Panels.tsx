@@ -5,6 +5,8 @@ import { ResponsiveContainer, ComposedChart, Line, Area, XAxis, YAxis, Tooltip, 
 import { DATA } from '@/lib/analyzedData';
 import { Mode, LABEL, PRESETS, colorOf, pillsFor, metrics, wealth, MIN_DATE, MAX_DATE, C } from '@/lib/model';
 import type { Row } from '@/lib/types';
+import { RegressionTab, OptionsTab, VolatilityTab } from './AnalysisTabs';
+
 const spring = { type: 'spring', stiffness: 380, damping: 36 } as const;
 const MODES: [Mode, string][] = [['futures', 'Futures'], ['options', 'Options'], ['h2h', 'Head-to-Head'], ['equity', 'Equity']];
 const f = (x: number, d = 2) => (Number.isFinite(x) ? x.toFixed(d) : '–');
@@ -62,9 +64,15 @@ export function Dock({ mode, setMode, sel, toggle, range, openRange, openSheet }
               <motion.button whileTap={{ scale: 0.95 }} key={k} onClick={() => toggle(k)} className="h-9 shrink-0 rounded-full px-3.5 text-[11px] font-medium"
                 style={{ border: `1px solid ${on ? colorOf(k) : 'rgba(255,255,255,.1)'}`, color: on ? colorOf(k) : 'rgba(255,255,255,.5)', background: on ? colorOf(k) + '1f' : 'transparent' }}>{LABEL[k]}</motion.button>); })}
           </div>)}
-        <button onClick={openRange} className="flex h-10 w-full items-center justify-between rounded-2xl bg-white/[0.04] px-4 text-xs">
-          <span className="text-white/50">Period</span><span className="num text-white/90">{range.a} → {range.b}</span>
-        </button>
+        <div className="flex gap-2">
+          <button onClick={openRange} className="flex h-10 flex-1 items-center justify-between rounded-2xl bg-white/[0.04] px-4 text-xs hover:bg-white/[0.08] transition">
+            <span className="text-white/50">Period</span><span className="num text-white/90">{range.a} → {range.b}</span>
+          </button>
+          <button onClick={openSheet} className="flex h-10 items-center gap-1.5 rounded-2xl bg-sky-500/15 border border-sky-500/25 px-3.5 text-xs font-medium text-sky-300 hover:bg-sky-500/25 transition">
+            <span>📊</span>
+            <span>Analysis</span>
+          </button>
+        </div>
       </div>
     </div>);
 }
@@ -93,42 +101,129 @@ const tip = { contentStyle: { background: 'rgba(10,12,16,.95)', border: '1px sol
 const ax = { stroke: 'rgba(255,255,255,.25)', tick: { fill: 'rgba(255,255,255,.45)', fontSize: 10 }, tickLine: false } as const;
 
 export function Analytics({ open, setOpen, rows, mode, sel, hasHedge }: { open: boolean; setOpen: (b: boolean) => void; rows: Row[]; mode: Mode; sel: string[]; hasHedge: boolean }) {
-  const drag = useDragControls(); const [chip, setChip] = useState('VR');
-  const all = hasHedge ? pillsFor(mode) : []; const keys = sel.filter((k) => all.includes(k));
-  const W = wealth(rows, keys); const bars = ['unhedged', ...all].map((k) => ({ k, name: LABEL[k], v: (metrics(rows, k) as any)[chip] }));
+  const drag = useDragControls();
+  const [tab, setTab] = useState<'overview' | 'regression' | 'options' | 'volatility' | 'matrix'>('regression');
+  const [chip, setChip] = useState('VR');
+  const all = hasHedge ? pillsFor(mode) : [];
+  const keys = sel.filter((k) => all.includes(k));
+  const W = wealth(rows, keys);
+  const bars = ['unhedged', ...all].map((k) => ({ k, name: LABEL[k], v: (metrics(rows, k) as any)[chip] }));
   const lead = keys[0];
+
   return (
-    <motion.div className="glass fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-2xl flex-col rounded-t-3xl" style={{ height: '86dvh' }} initial={false}
-      animate={{ y: open ? 0 : '105%' }} transition={spring} drag="y" dragListener={false} dragControls={drag} dragConstraints={{ top: 0, bottom: 0 }} dragElastic={{ top: 0, bottom: 0.6 }} onDragEnd={(_, i) => (i.offset.y > 110 || i.velocity.y > 500) && setOpen(false)}>
-      <div className="flex h-8 shrink-0 items-center justify-center" style={{ touchAction: 'none' }} onPointerDown={(e) => drag.start(e)}><div className="h-1 w-10 rounded-full bg-white/30" /></div>
-      <div className="noscroll flex-1 space-y-7 overflow-y-auto px-4 pb-10" style={{ paddingBottom: 'max(40px, env(safe-area-inset-bottom))' }}>
-        <section>
-          <h3 className="mb-1 text-[10px] uppercase tracking-widest text-white/40">Cumulative wealth &amp; drawdown</h3>
-          <div className="h-60"><ResponsiveContainer><ComposedChart data={W} margin={{ left: -18, right: -10, top: 6 }}>
-            <CartesianGrid stroke="rgba(255,255,255,.05)" vertical={false} />
-            <XAxis dataKey="d" {...ax} minTickGap={50} tickFormatter={(d) => d.slice(2, 7)} /><YAxis yAxisId="w" {...ax} domain={['auto', 'auto']} /><YAxis yAxisId="d" orientation="right" {...ax} domain={['auto', 0]} />
-            <Tooltip {...tip} />
-            <Area yAxisId="d" dataKey="dd_unhedged" name="Unhedged DD %" stroke="none" fill={C.bad} fillOpacity={0.14} />
-            {lead && <Area yAxisId="d" dataKey={'dd_' + lead} name={LABEL[lead] + ' DD %'} stroke="none" fill={colorOf(lead)} fillOpacity={0.14} />}
-            <Line yAxisId="w" dataKey="unhedged" name="Unhedged" stroke={C.eq} dot={false} strokeWidth={2} />
-            {keys.map((k) => <Line yAxisId="w" key={k} dataKey={k} name={LABEL[k]} stroke={colorOf(k)} dot={false} strokeWidth={2} />)}
-          </ComposedChart></ResponsiveContainer></div>
-          {!hasHedge && <p className="text-[11px] text-white/40">No futures/options data in this period — showing Nifty equity only.</p>}
-        </section>
-        <section>
-          <h3 className="mb-2 text-[10px] uppercase tracking-widest text-white/40">Tail risk &amp; cost</h3>
-          <div className="noscroll mb-2 flex gap-1.5 overflow-x-auto">{CHIPS.map(([k, l]) => (<button key={k} onClick={() => setChip(k)} className={`h-8 shrink-0 rounded-full border px-3 text-[11px] ${chip === k ? 'border-white/60 text-white' : 'border-white/10 text-white/50'}`}>{l}</button>))}</div>
-          <div className="h-56"><ResponsiveContainer><BarChart data={bars} margin={{ left: -18, right: 4 }}>
-            <CartesianGrid stroke="rgba(255,255,255,.05)" vertical={false} /><XAxis dataKey="name" {...ax} interval={0} tick={{ fill: 'rgba(255,255,255,.45)', fontSize: 8 }} /><YAxis {...ax} /><Tooltip {...tip} cursor={{ fill: 'rgba(255,255,255,.04)' }} formatter={(v: any) => f(Number(v))} />
-            <Bar dataKey="v" radius={[4, 4, 0, 0]}>{bars.map((b) => <Cell key={b.k} fill={colorOf(b.k)} fillOpacity={b.k === 'unhedged' || sel.includes(b.k) ? 1 : 0.35} />)}</Bar>
-          </BarChart></ResponsiveContainer></div>
-        </section>
-        <section>
-          <h3 className="mb-2 text-[10px] uppercase tracking-widest text-white/40">Regime matrix · futures vs options</h3>
-          <div className="space-y-3">{PRESETS.map((p) => <RegimeCard key={p.id} id={p.id} label={p.label} />)}</div>
-        </section>
+    <motion.div
+      className="glass fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-2xl flex-col rounded-t-3xl shadow-2xl border-t border-white/15"
+      style={{ height: '88dvh' }}
+      initial={false}
+      animate={{ y: open ? 0 : '105%' }}
+      transition={spring}
+      drag="y"
+      dragListener={false}
+      dragControls={drag}
+      dragConstraints={{ top: 0, bottom: 0 }}
+      dragElastic={{ top: 0, bottom: 0.6 }}
+      onDragEnd={(_, i) => (i.offset.y > 110 || i.velocity.y > 500) && setOpen(false)}
+    >
+      {/* Drag handle and header */}
+      <div className="flex h-10 shrink-0 items-center justify-between px-4" onPointerDown={(e) => drag.start(e)} style={{ touchAction: 'none' }}>
+        <div className="w-8" />
+        <div className="h-1 w-10 rounded-full bg-white/30 cursor-grab active:cursor-grabbing" />
+        <button
+          onClick={() => setOpen(false)}
+          className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-xs text-white/70 hover:bg-white/20 hover:text-white transition"
+        >
+          ✕
+        </button>
       </div>
-    </motion.div>);
+
+      {/* Tabs navigation */}
+      <div className="noscroll flex gap-1.5 overflow-x-auto border-b border-white/10 px-4 pb-2.5 text-xs">
+        {[
+          ['regression', '📉 Regression & OLS'],
+          ['overview', '📈 Wealth & Risk'],
+          ['options', '🎯 Options Structure'],
+          ['volatility', '🌊 20-Yr Volatility'],
+          ['matrix', '📋 Regime Matrix'],
+        ].map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => setTab(id as any)}
+            className={`shrink-0 rounded-xl px-3 py-1.5 text-xs font-medium transition ${
+              tab === id
+                ? 'bg-sky-500/20 text-sky-300 border border-sky-400/30 shadow-sm'
+                : 'text-white/50 hover:bg-white/5 hover:text-white/80'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab contents */}
+      <div className="noscroll flex-1 space-y-7 overflow-y-auto px-4 py-4 pb-12" style={{ paddingBottom: 'max(40px, env(safe-area-inset-bottom))' }}>
+        {tab === 'regression' && <RegressionTab rows={rows} hasHedge={hasHedge} />}
+
+        {tab === 'options' && <OptionsTab rows={rows} hasHedge={hasHedge} />}
+
+        {tab === 'volatility' && <VolatilityTab />}
+
+        {tab === 'overview' && (
+          <>
+            <section>
+              <h3 className="mb-1 text-[10px] uppercase tracking-widest text-white/40">Cumulative wealth &amp; drawdown</h3>
+              <div className="h-60">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={W} margin={{ left: -18, right: -10, top: 6 }}>
+                    <CartesianGrid stroke="rgba(255,255,255,.05)" vertical={false} />
+                    <XAxis dataKey="d" {...ax} minTickGap={50} tickFormatter={(d) => d.slice(2, 7)} />
+                    <YAxis yAxisId="w" {...ax} domain={['auto', 'auto']} />
+                    <YAxis yAxisId="d" orientation="right" {...ax} domain={['auto', 0]} />
+                    <Tooltip {...tip} />
+                    <Area yAxisId="d" dataKey="dd_unhedged" name="Unhedged DD %" stroke="none" fill={C.bad} fillOpacity={0.14} />
+                    {lead && <Area yAxisId="d" dataKey={'dd_' + lead} name={LABEL[lead] + ' DD %'} stroke="none" fill={colorOf(lead)} fillOpacity={0.14} />}
+                    <Line yAxisId="w" dataKey="unhedged" name="Unhedged" stroke={C.eq} dot={false} strokeWidth={2} />
+                    {keys.map((k) => <Line yAxisId="w" key={k} dataKey={k} name={LABEL[k]} stroke={colorOf(k)} dot={false} strokeWidth={2} />)}
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+              {!hasHedge && <p className="text-[11px] text-white/40 mt-1">No futures/options data in this period — showing Nifty equity only.</p>}
+            </section>
+
+            <section>
+              <h3 className="mb-2 text-[10px] uppercase tracking-widest text-white/40">Tail risk &amp; cost comparison</h3>
+              <div className="noscroll mb-2 flex gap-1.5 overflow-x-auto">
+                {CHIPS.map(([k, l]) => (
+                  <button key={k} onClick={() => setChip(k)} className={`h-8 shrink-0 rounded-full border px-3 text-[11px] ${chip === k ? 'border-white/60 text-white bg-white/10' : 'border-white/10 text-white/50'}`}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+              <div className="h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={bars} margin={{ left: -18, right: 4 }}>
+                    <CartesianGrid stroke="rgba(255,255,255,.05)" vertical={false} />
+                    <XAxis dataKey="name" {...ax} interval={0} tick={{ fill: 'rgba(255,255,255,.45)', fontSize: 8 }} />
+                    <YAxis {...ax} />
+                    <Tooltip {...tip} cursor={{ fill: 'rgba(255,255,255,.04)' }} formatter={(v: any) => f(Number(v))} />
+                    <Bar dataKey="v" radius={[4, 4, 0, 0]}>
+                      {bars.map((b) => <Cell key={b.k} fill={colorOf(b.k)} fillOpacity={b.k === 'unhedged' || sel.includes(b.k) ? 1 : 0.35} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+          </>
+        )}
+
+        {tab === 'matrix' && (
+          <section>
+            <h3 className="mb-2 text-[10px] uppercase tracking-widest text-white/40">Regime matrix · futures vs options</h3>
+            <div className="space-y-3">{PRESETS.map((p) => <RegimeCard key={p.id} id={p.id} label={p.label} />)}</div>
+          </section>
+        )}
+      </div>
+    </motion.div>
+  );
 }
 function RegimeCard({ id, label }: { id: string; label: string }) {
   const r = DATA.regimes[id]; const m = id === 'FULL' ? r.pooledFO : r.metrics; const eq = r.eq;
